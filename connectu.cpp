@@ -18,6 +18,7 @@
 #include <set>
 #include <queue>
 #include <algorithm>
+#include <cctype>
 
 using namespace std;
 
@@ -40,7 +41,9 @@ struct Post {
         
     // TODO: LAB 3 - Implement Scoring Logic
     double getScore() {
-        return 0.0; 
+        double hoursOld = (time(0)-timestamp) / 3600;
+        double score = (likes * 10) + (1000/hoursOld + 1);
+        return score; 
     }
 };
 
@@ -53,8 +56,12 @@ public:
     // Task: Add a new post to the FRONT of the list (O(1))
     void addPost(int pid, int uid, string content, int likes, long time) {
         // TODO: LAB 1
+        Post* newPost = new Post(pid, uid, content, likes, time); //new pointer to a new Post object
 
-
+        Post* oldPost = head; //Insert newPost in head node, push oldPost back
+        head = newPost;
+        
+        newPost->next = oldPost;
     }
 
     void printTimeline() {
@@ -64,7 +71,13 @@ public:
         // Task: Traverse the linked list and print content
         // TODO: LAB 1
 
+        while(current != nullptr){ //Prints content for every post in the linked list
+            cout << current->content << endl;
+            current = current->next;
+        }
+
     }
+
 };
 
 // Forward Declaration
@@ -123,10 +136,47 @@ public:
 // BST Implementation
 BSTNode* FriendBST::insert(BSTNode* node, User* u) {
     // TODO: LAB 4
+    if(node == nullptr){
+        return new BSTNode(u);
+    }
+
+    //Converts the username string into lower case for ASCII comparison
+    string currentName = (node->user->username);
+
+    for(char& c : currentName){
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+
+    string newName = u->username;
+
+    for(char& c : newName){
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+
+    //If the current node's ASCII is bigger, then traverse to the left child and run the check again
+    if(currentName > newName){
+        node->left = insert(node->left, u);
+    }
+    //If the current node's ASCII is smaller, then traverse to the right child and run the check again
+    else{
+        node->right = insert(node->right, u);
+    }
+
     return node;
 }
 void FriendBST::printInOrder(BSTNode* node) {
     // TODO: LAB 4
+    //Return if it reached a nullptr
+    if(node == nullptr){
+        return;
+    }
+    
+    //Go all the way left of the tree
+    printInOrder(node->left);
+    //Print out the username after the previous recursive call returns
+    cout<<node->user->username+"\n";
+    //Go to the right if available to print out the right child
+    printInOrder(node->right);
 }
 
 // TODO: LAB 3 - Max Heap
@@ -135,13 +185,100 @@ private:
     Post* heap[1000]; 
     int size;
 
-    void heapifyDown(int index) { /* TODO: LAB 3 */ }
-    void heapifyUp(int index) { /* TODO: LAB 3 */ }
+    void heapifyDown(int index) { 
+        /* TODO: LAB 3 */
+        int leftChildIndex = 2*index + 1;
+        int rightChildIndex = 2*index + 2;
+
+        int childCandidate;
+        //If both child exist, find the bigger child and assign as candidate for comparison
+        if(leftChildIndex < size && rightChildIndex < size){ 
+                if(heap[leftChildIndex]->getScore() > heap[rightChildIndex]->getScore()){
+                    childCandidate = leftChildIndex;
+                }
+                else{
+                    childCandidate = rightChildIndex;
+                }
+            }
+        //If only one child exist, assign that child for comparison
+        else if(leftChildIndex < size){
+            childCandidate = leftChildIndex;
+        }
+        else if(rightChildIndex < size){
+            childCandidate = rightChildIndex;
+        }
+        //If no child exist, this mean the current node is leaf, then return
+        else{
+            return;
+        }
+
+        //If parent smaller than the biggest child, then swap
+        if(heap[index]->getScore() < heap[childCandidate]->getScore()){
+            Post* temp = heap[index];
+            heap[index] = heap[childCandidate];
+            heap[childCandidate] = temp;
+        }
+        //Return/stops recursive if parent is greater than child
+        else{
+            return;
+        }
+
+        /*Recursive function to ensure that the original index value 
+        keep going down until the max heap condition is met */
+        return heapifyDown(childCandidate);
+
+    }
+    void heapifyUp(int index) { 
+        /* TODO: LAB 3 */
+        //Gets the parent index
+        int parentIndex = (index-1)/2;
+
+        /*Stops the recursive if the original index value is at root
+          or parent node does not exist*/
+        if(parentIndex < 0 || heap[parentIndex] == nullptr){
+            return;
+        }
+        //if the current parameter index's score is greater than the parent,
+        //then, swap the value of the parentIndex and the parameter index
+        if(heap[index]->getScore() > heap[parentIndex]->getScore()){
+            Post* temp = heap[index];
+            heap[index] = heap[parentIndex];
+            heap[parentIndex] = temp;
+        }
+        //Stops recursive if parent is greater
+        else{
+            return;
+        }
+        return heapifyUp(parentIndex);
+    }
 
 public:
     FeedHeap() : size(0) {}
-    void push(Post* p) { /* TODO: LAB 3 */ }
-    Post* popMax() { return nullptr; /* TODO: LAB 3 */ }
+    void push(Post* p) { 
+        /* TODO: LAB 3 */
+        //Sets the new Post as the last node of the heap
+        heap[size] = p;
+        size++;
+
+        //heapify up to complete the max heap structure
+        heapifyUp(size-1);
+     }
+    Post* popMax() { 
+        /* TODO: LAB 3 */ 
+        if(size == 0){
+            return nullptr;
+        }
+        Post* max = heap[0];
+        //Set lastIndex as new root of heap
+        Post* lastIndex = heap[size - 1];
+        heap[0] = heap[size-1];
+        size --;
+        //Push that node down to make the heap valid
+        heapifyDown(0);
+
+        //Returns the max value / old root of heap
+        return max;  
+    }
     bool isEmpty() { return size == 0; }
 };
 
@@ -160,9 +297,14 @@ private:
     static const int TABLE_SIZE = 10007; 
     HashNode** table;
 
+    //Polynomial Rolling Hash
     unsigned long hashFunction(string key) {
-        // TODO: LAB 2
-        return 0; 
+        unsigned long hash = 0;
+        unsigned long prime = 31;
+        for(char c : key){
+            hash = hash * prime + c;
+        }
+        return hash; 
     }
 
 public:
@@ -171,14 +313,45 @@ public:
         for (int i = 0; i < TABLE_SIZE; i++) table[i] = nullptr;
     }
 
-    void put(string key, User* user) { /* TODO: LAB 2 */ }
+    //Inserts and update User* in the hash table
+    void put(string key, User* user) {
+        //Converts key into index
+        unsigned long i = hashFunction(key) % TABLE_SIZE;
+        //Gets head of linked list
+        HashNode* currUser = table[i];
 
-    User* get(string key) {
-        // --- TEMPORARY FALLBACK FOR LAB 1 ---
-        for(User* u : allUsers) {
-            if (u->username == key) return u;
+        //Traverses linked list
+        while(currUser != nullptr) {
+            //Checks if key exist (collision happens), update value if it does
+            if(currUser->key == key) {
+                currUser->value = user;
+                return;
+            }
+            currUser = currUser->next;
         }
+        //Adds new user node if no collsion happens
+        HashNode* node = new HashNode(key, user);
+        node->next = table[i];
+        table[i] = node;
+    }
+
+    //Searches for a key in the hash table and returns the associated User*
+    User* get(string key) {
         // TODO: LAB 2 - REPLACE ABOVE WITH HASH LOOKUP
+        //Converts key into index
+        unsigned long i = hashFunction(key) % TABLE_SIZE;
+        //get head of linked list
+        HashNode* currUser = table[i];
+
+        //Traveses linked list
+        while(currUser != nullptr) {
+
+            //if key matches, return Users*
+            if(currUser->key == key){
+                return currUser->value;
+            }
+            currUser = currUser->next;
+        }
         return nullptr;
     }
 };
@@ -252,6 +425,46 @@ void addFriendship(User* requester, User* target) {
 void recommendFriends(User* startUser) {
     cout << "\n[GRAPH ANALYSIS] Finding friends of friends..." << endl;
     // TODO: LAB 5
+
+    if(!startUser) return;
+
+    queue<pair<User*, int>> q;
+    set<int>visited;
+
+    //Mark startUSer (yourself) as visited
+    visited.insert(startUser->userId);
+
+    //Enqueue your direct friends, mark them as visited
+    for(User* friendUser : startUser->friends){
+        q.push({friendUser, 1});
+        visited.insert(friendUser->userId);
+    }
+
+    /*BFS, while q is not empty, traverse the a level at a time
+      by adding its children node (mutuals) to the end of the q*/
+    while(!q.empty()){
+        User* current = q.front().first;
+        int level = q.front().second;
+        q.pop();
+
+        //Print only at the second level
+        if(level == 2){
+            cout<<"\n"<<current->username<< " - "<< current->userId << endl;
+            continue;
+        }
+
+        //Add children nodes to the q before the second level
+        if(level < 2){
+            for(User* mutual : current->friends){
+                if(visited.find(mutual->userId) == visited.end()){
+                    q.push({mutual, level + 1});
+                    visited.insert(mutual->userId);
+                }
+            }
+
+        }
+    }
+   
 }
 
 // ==========================================
@@ -463,7 +676,7 @@ void showMainMenu() {
         else if (choice == 3) {
             // SAFETY: Commented out to prevent data loss on initial run.
             // Students must uncomment this ONLY when Lab 1 is complete.
-            // saveData(); 
+            saveData(); 
             cout << "Goodbye! " << endl;
         }
     }
